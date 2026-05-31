@@ -1,11 +1,6 @@
 const state = {
   summary: null,
   houses: [],
-  neighborhoods: [],
-  histogram: [],
-  scatter: [],
-  importance: [],
-  clusters: []
 };
 
 const tooltip = d3.select('body').append('div').attr('class', 'tooltip').style('opacity', 0);
@@ -278,153 +273,6 @@ function baseSvg(selector) {
   return { svg, g, width, height, innerW, innerH, margin };
 }
 
-function drawNeighborhoodChart() {
-  const data = state.neighborhoods.slice(0, 15);
-  const { g, innerW, innerH } = baseSvg('#neighborhoodChart');
-  const x = d3.scaleBand().domain(data.map(d => d.Neighborhood)).range([0, innerW]).padding(0.15);
-  const y = d3.scaleLinear().domain([0, d3.max(data, d => d.median_price)]).nice().range([innerH, 0]);
-
-  g.append('g').attr('transform', `translate(0,${innerH})`).call(d3.axisBottom(x)).selectAll('text')
-    .attr('transform', 'rotate(-40)').style('text-anchor', 'end');
-  g.append('g').call(d3.axisLeft(y).tickFormat(d => `$${d3.format(',.0f')(d)}`));
-
-  g.selectAll('rect').data(data).enter().append('rect')
-    .attr('x', d => x(d.Neighborhood)).attr('y', d => y(d.median_price))
-    .attr('width', x.bandwidth()).attr('height', d => innerH - y(d.median_price))
-    .attr('fill', '#5c6bc0')
-    .on('mousemove', (event, d) => showTip(event, `${d.Neighborhood}<br>Median: ${currency(d.median_price)}<br>Count: ${d.n_houses}`))
-    .on('mouseleave', hideTip);
-}
-
-function drawHistogram() {
-  const data = state.histogram;
-  const { g, innerW, innerH } = baseSvg('#histogram');
-  const x = d3.scaleLinear().domain([d3.min(data, d => d.bin_start), d3.max(data, d => d.bin_end)]).range([0, innerW]);
-  const y = d3.scaleLinear().domain([0, d3.max(data, d => d.count)]).nice().range([innerH, 0]);
-  g.append('g').attr('transform', `translate(0,${innerH})`).call(d3.axisBottom(x).tickFormat(d => `$${d3.format(',.0f')(d)}`));
-  g.append('g').call(d3.axisLeft(y));
-  g.selectAll('rect').data(data).enter().append('rect')
-    .attr('x', d => x(d.bin_start) + 1)
-    .attr('y', d => y(d.count))
-    .attr('width', d => Math.max(0, x(d.bin_end) - x(d.bin_start) - 2))
-    .attr('height', d => innerH - y(d.count))
-    .attr('fill', '#26a69a')
-    .on('mousemove', (event, d) => showTip(event, `${currency(d.bin_start)} - ${currency(d.bin_end)}<br>Count: ${d.count}`))
-    .on('mouseleave', hideTip);
-}
-
-function drawScatter() {
-  const data = state.scatter;
-  const { g, innerW, innerH } = baseSvg('#scatterplot');
-  const x = d3.scaleLinear().domain(d3.extent(data, d => d.x)).nice().range([0, innerW]);
-  const y = d3.scaleLinear().domain(d3.extent(data, d => d.y)).nice().range([innerH, 0]);
-  g.append('g').attr('transform', `translate(0,${innerH})`).call(d3.axisBottom(x));
-  g.append('g').call(d3.axisLeft(y).tickFormat(d => `$${d3.format(',.0f')(d)}`));
-  g.selectAll('circle').data(data).enter().append('circle')
-    .attr('cx', d => x(d.x)).attr('cy', d => y(d.y)).attr('r', 3.5)
-    .attr('fill', '#ef5350').attr('opacity', 0.55)
-    .on('mousemove', (event, d) => showTip(event, `${d.Neighborhood}<br>Living Area: ${d3.format(',')(d.x)}<br>Sale Price: ${currency(d.y)}`))
-    .on('mouseleave', hideTip);
-}
-
-function drawImportance() {
-  const data = state.importance.slice(0, 15).reverse();
-  const { g, innerW, innerH } = baseSvg('#importanceChart');
-  const y = d3.scaleBand().domain(data.map(d => d.feature)).range([innerH, 0]).padding(0.15);
-  const x = d3.scaleLinear().domain([0, d3.max(data, d => d.importance)]).nice().range([0, innerW]);
-  g.append('g').call(d3.axisLeft(y));
-  g.append('g').attr('transform', `translate(0,${innerH})`).call(d3.axisBottom(x));
-  g.selectAll('rect').data(data).enter().append('rect')
-    .attr('y', d => y(d.feature)).attr('x', 0)
-    .attr('height', y.bandwidth()).attr('width', d => x(d.importance))
-    .attr('fill', '#7e57c2')
-    .on('mousemove', (event, d) => showTip(event, `${d.feature}<br>Importance: ${d3.format('.4f')(d.importance)}`))
-    .on('mouseleave', hideTip);
-}
-
-function getClusterLabel(d, priceExtent, areaExtent) {
-  const [pMin, pMax] = priceExtent;
-  const [aMin, aMax] = areaExtent;
-
-  const priceRange = pMax - pMin || 1;
-  const areaRange = aMax - aMin || 1;
-
-  const priceLevel = (d.avg_price - pMin) / priceRange;
-  const areaLevel = (d.avg_area - aMin) / areaRange;
-
-  if (priceLevel < 0.33 && areaLevel < 0.33) {
-    return "Affordable / Compact Homes";
-  }
-
-  if (priceLevel > 0.66 && areaLevel > 0.66) {
-    return "Large / Premium Homes";
-  }
-
-  if (priceLevel > 0.66) {
-    return "High-price Segment";
-  }
-
-  if (areaLevel > 0.66) {
-    return "Spacious Homes";
-  }
-
-  return "Mid-range Homes";
-}
-
-function drawClusters() {
-  const data = state.clusters;
-  const priceExtent = d3.extent(data, d=>d.avg_price);
-  const areaExtent = d3.extent(data, d=>d.avg_area);
-  const { g, innerW, innerH } = baseSvg('#clusterChart');
-
-  const x = d3.scaleBand()
-    .domain(data.map(d => `C${d.Cluster}`))
-    .range([0, innerW])
-    .padding(0.2);
-
-  const y = d3.scaleLinear()
-    .domain([0, d3.max(data, d => d.avg_price)])
-    .nice()
-    .range([innerH, 0]);
-
-  g.append('g')
-    .attr('transform', `translate(0,${innerH})`)
-    .call(d3.axisBottom(x));
-
-  g.append('g')
-    .call(d3.axisLeft(y).tickFormat(d => `$${d3.format(',.0f')(d)}`));
-
-  g.selectAll('rect').data(data).enter().append('rect')
-    .attr('x', d => x(`C${d.Cluster}`))
-    .attr('y', d => y(d.avg_price))
-    .attr('width', x.bandwidth())
-    .attr('height', d => innerH - y(d.avg_price))
-    .attr('fill', '#42a5f5')
-    .on('mousemove', (event, d) => showTip(event, `
-      <strong>Cluster ${d.Cluster}</strong><br>
-      <em>${getClusterLabel(d, priceExtent, areaExtent)}</em><br>
-      Avg Price: ${currency(d.avg_price)}<br>
-      Avg Area: ${d3.format(',')(d.avg_area)}<br>
-      Avg Quality: ${d3.format(".2f")(d.avg_quality)}<br>
-      Count: ${d.n_houses}
-    `))
-    .on('mouseleave', hideTip);
-
-  const container = d3.select('#clusterChart').node().parentNode;
-
-  d3.select(container).selectAll('.cluster-legend').remove();
-
-  const legend = d3.select(container)
-    .append('div')
-    .attr('class', 'cluster-legend')
-    .style('margin-top', '8px')
-    .style('font-size', '0.85rem');
-
-  data.forEach(d => {
-    legend.append('div')
-      .html(`<strong>Cluster ${d.Cluster}:</strong> ${getClusterLabel(d, priceExtent, areaExtent)}`);
-  });
-}
 function showTip(event, html) {
   tooltip.style('opacity', 1).html(html)
     .style('left', `${event.pageX + 6}px`)
@@ -435,23 +283,11 @@ function hideTip() { tooltip.style('opacity', 0); }
 async function refresh() {
   console.log("REFRESH TRIGGERED");
   const q = buildQuery();
-   console.log("QUERY STRING:", q);
+  console.log("QUERY STRING:", q);
   const suffix = q ? `?${q}` : '';
-  [state.houses, state.neighborhoods, state.histogram, state.scatter, state.importance, state.clusters] = await Promise.all([
-    getJSON(`/api/houses${suffix}`),
-    getJSON(`/api/neighborhoods${suffix}`),
-    getJSON(`/api/price_histogram${suffix}`),
-    getJSON(`/api/scatter${suffix}`),
-    getJSON('/api/feature_importance?top_n=20'),
-    getJSON(`/api/clusters${suffix}`)
-  ]);
+  state.houses = await getJSON(`/api/houses${suffix}`);
   drawMetricCards();
   updateMap();
-  drawNeighborhoodChart();
-  drawHistogram();
-  drawScatter();
-  drawImportance();
-  drawClusters();
 }
 
 async function init() {
@@ -481,11 +317,6 @@ async function init() {
 
 window.addEventListener('resize', () => {
   map.invalidateSize();
-  drawNeighborhoodChart();
-  drawHistogram();
-  drawScatter();
-  drawImportance();
-  drawClusters();
 });
 
 init();
