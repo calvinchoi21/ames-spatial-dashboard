@@ -67,7 +67,7 @@ X_train, X_cal, y_train, y_cal = train_test_split(
 # --------------------------------------------------
 
 rf_model = RandomForestRegressor(
-    n_estimators=300,
+    n_estimators=50,
     random_state=42,
     n_jobs=-1
 )
@@ -207,7 +207,7 @@ def encode_pred_df(df: pd.DataFrame) -> pd.DataFrame:
 X_pred_train = encode_pred_df(X_train)
 X_pred_cal   = encode_pred_df(X_cal)
 
-pred_model = RandomForestRegressor(n_estimators=300, random_state=42, n_jobs=-1)
+pred_model = RandomForestRegressor(n_estimators=50, random_state=42, n_jobs=-1)
 pred_model.fit(X_pred_train, y_train)
 
 # Conformal interval for pred_model
