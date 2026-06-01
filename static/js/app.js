@@ -323,11 +323,16 @@ init();
 
 // ── Custom Prediction Form ────────────────────────────────────────
 
+let _lastShapData = null;
+
 function drawWaterfall(baseValue, shapValues, predictedPrice) {
+  _lastShapData = { baseValue, shapValues, predictedPrice };
+
   const svg = d3.select('#shap-waterfall');
   svg.selectAll('*').remove();
 
-  const W = svg.node().clientWidth || 800;
+  const container = svg.node().parentElement;
+  const W = container ? container.clientWidth : (svg.node().clientWidth || 800);
   const H = svg.node().clientHeight || 320;
   const margin = { top: 18, right: 110, bottom: 40, left: 145 };
   const innerW = W - margin.left - margin.right;
@@ -426,6 +431,19 @@ function drawWaterfall(baseValue, shapValues, predictedPrice) {
     .call(gg => gg.select('.domain').attr('stroke', '#cbd5e1'))
     .selectAll('text').attr('font-size', '0.75rem');
 }
+
+// Redraw on container resize so chart stays responsive
+(function () {
+  const svgEl = document.getElementById('shap-waterfall');
+  if (!svgEl) return;
+  const ro = new ResizeObserver(() => {
+    if (_lastShapData) {
+      const { baseValue, shapValues, predictedPrice } = _lastShapData;
+      drawWaterfall(baseValue, shapValues, predictedPrice);
+    }
+  });
+  ro.observe(svgEl.parentElement || svgEl);
+})();
 
 async function submitPrediction() {
   const btn = document.getElementById('predictBtn');
